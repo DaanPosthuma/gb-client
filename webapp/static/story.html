@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>A Game Boy, running as ClickHouse SQL</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav>
+    <span class="brand">gb-client</span>
+    <a href="/" class="active">Story</a>
+    <a href="/run">Run Boot ROM</a>
+    <a href="/explore">Explore DB</a>
+</nav>
+<main>
+    <h1>A Game Boy, running as ClickHouse SQL</h1>
+    <p class="subtitle">Same idea as the CHIP-8 project in this environment, scaled up:
+        a Sharp LR35902 CPU and tile-based PPU implemented entirely as SQL functions,
+        proven by booting a real (open-source) Game Boy boot ROM.</p>
+
+    <h2>Why start with the boot ROM</h2>
+    <p>The Game Boy CPU has roughly 500 opcodes (256 unprefixed + 256 CB-prefixed bit
+        operations) versus CHIP-8's 35 - implementing all of it up front wasn't the
+        right first step. Instead, this mirrors the CHIP-8 project's own first
+        milestone: disassemble one small, well-understood program, implement exactly
+        the opcodes it needs, and validate against real output. SameBoy's DMG boot ROM
+        turned out to need only <strong>~35 distinct opcodes</strong> - about the same
+        size as CHIP-8's full instruction set.</p>
+
+    <h2>Getting the ROMs legally</h2>
+    <div class="callout">
+        The actual Nintendo boot ROM is copyrighted and not freely distributable.
+        Instead this uses <a href="https://github.com/LIJI32/SameBoy">SameBoy's</a>
+        open-source (MIT/Expat licensed) clean-room replacement boot ROM, assembled
+        from source with <code>rgbds</code> (the standard homebrew toolchain) rather
+        than downloading any binary. The test "cartridge" is one built from scratch
+        with a trivial infinite-loop program - its header's mandatory Nintendo logo
+        bytes (required by every Game Boy ROM to boot on real hardware, part of the
+        file format itself) were filled in by <code>rgbfix -v</code>, a standard
+        rgbds tool, not extracted from any commercial ROM dump.
+    </div>
+
+    <h2>Same architecture as CHIP-8, same pitfalls found faster</h2>
+    <p>CPU state (16KB+ memory as a full 64KB flat array, all eight 8-bit registers,
+        SP/PC, IME, and a running T-cycle counter) is one ClickHouse <code>Tuple</code>.
+        <code>gb_step(state) -&gt; state</code> decodes and executes one instruction;
+        <code>arrayFold</code> runs it N times per batch inside a single query, exactly
+        like CHIP-8's <code>ch8_run_batch</code>.</p>
+
+    <div class="callout bug">
+        <strong>A bigger version of CHIP-8's chaining pitfall.</strong> CHIP-8 taught
+        that ClickHouse UDFs are macro-expanded at each call site, not opaquely
+        compiled, so chaining calls <em>outside</em> <code>arrayFold</code> explodes
+        the query tree. Here the same mechanism bit a single instruction: helper
+        functions like <code>gb_write8</code> and <code>gb_set_hl</code> each
+        re-reference their input state ~13 times internally (to carry every untouched
+        register field forward). Chaining just two or three of these
+        (<code>gb_set_hl(gb_write8(gb_write8(s, ...), ...), ...)</code> for something
+        like <code>CALL</code>, which pushes two bytes then jumps) multiplies that 13x
+        at <em>each level</em> - 2-3 levels of chaining pushed a single opcode's
+        expansion past ClickHouse's 500,000-node query-tree limit, even inside
+        <code>arrayFold</code>. The fix: generate every opcode handler as <strong>one
+        flat <code>gb_mk(...)</code> call</strong>, computing all 15 fields directly
+        from accessors on the one original state parameter, never from another
+        function's state-tuple output. With ~35 opcodes each needing a 15-argument
+        call, this was written by a small Python generator
+        (<code>gen_step.py</code>) rather than by hand - see the Explore tab.
+    </div>
+
+    <h2>The PPU</h2>
+    <p>Background-only for now (no window layer, no sprites - the boot ROM doesn't use
+        either): for each of the 160&times;144 screen pixels, look up its tile from the
+        32&times;32 tile map at <code>0x9800</code>, fetch that tile's row from tile
+        data at <code>0x8000</code> (2 bits per pixel, stored as two bit-planes), and
+        run the result through the <code>BGP</code> palette register. All pure,
+        read-only scalar functions - the same "small composable helper called
+        repeatedly inside one <code>arrayMap</code>" pattern CHIP-8's sprite-drawing
+        code used.</p>
+
+    <h2>Result</h2>
+    <p>Running the assembled boot ROM against the from-scratch cartridge for ~25
+        frames (each frame = 70,224 T-cycles, most of it spent busy-looping in the boot
+        ROM's own VBlank-wait poll - meaning a single frame is actually tens of
+        thousands of individual SQL-executed CPU instructions) renders the real
+        SameBoy splash sequence: the Nintendo logo scrolls into place and the
+        trademark symbol appears, pixel-correct, entirely from executing real Game Boy
+        machine code through ClickHouse.</p>
+
+    <h2>What's not here yet</h2>
+    <p>This is intentionally scoped to "boot ROM works," not "plays games": no sprite
+        or window rendering, no sound output, no interrupt servicing (the boot ROM only
+        polls flags, never actually enables interrupts), no cartridge bank switching
+        (MBC1/3/5), and only ~35 of ~500 opcodes. Next step is broadening opcode
+        coverage toward Blargg's <code>cpu_instrs</code> test ROM - the Game Boy
+        equivalent of CHIP-8's <code>corax+</code> opcode-correctness suite.</p>
+
+    <footer>Boot ROM: SameBoy (MIT) &middot; Toolchain: rgbds &middot; CPU/PPU: ClickHouse SQL</footer>
+</main>
+</body>
+</html>

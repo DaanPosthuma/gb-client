@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Explore &mdash; gb-client</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav>
+    <span class="brand">gb-client</span>
+    <a href="/">Story</a>
+    <a href="/run">Run Boot ROM</a>
+    <a href="/explore" class="active">Explore DB</a>
+</nav>
+<main class="wide">
+    <h1>Explore the database</h1>
+    <p class="subtitle">Read-only SQL console against the live server, plus the schema and source behind the emulator.</p>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="sql">SQL console</button>
+        <button class="tab-btn" data-tab="schema">Schema</button>
+        <button class="tab-btn" data-tab="source">Source</button>
+    </div>
+
+    <section id="tab-sql">
+        <div class="panel">
+            <textarea id="sql-input" rows="5" placeholder="SELECT * FROM gb.state ORDER BY step_id DESC LIMIT 20">SELECT run_id, step_id, pc, sp, cycles, boot_active FROM gb.state ORDER BY step_id DESC LIMIT 20</textarea>
+            <div class="row" style="margin-top:10px">
+                <button id="run-sql" class="primary">Run query</button>
+                <span class="badge">SELECT / SHOW / DESCRIBE / EXPLAIN / WITH only</span>
+            </div>
+            <div class="row" style="margin-top:10px;flex-wrap:wrap">
+                <button class="canned" data-q="SELECT run_id, step_id, pc, sp, cycles, boot_active FROM gb.state ORDER BY step_id DESC LIMIT 20">Latest state rows</button>
+                <button class="canned" data-q="SELECT count(), uniq(run_id) AS distinct_runs, max(step_id) FROM gb.state">state table summary</button>
+                <button class="canned" data-q="SELECT run_id, step_id, pc, opcode FROM gb.state ORDER BY step_id DESC LIMIT 20">recent opcodes</button>
+                <button class="canned" data-q="SELECT name, engine, total_rows, formatReadableSize(total_bytes) AS size FROM system.tables WHERE database = 'gb'">gb.* tables</button>
+                <button class="canned" data-q="SELECT name FROM system.functions WHERE name LIKE 'gb_%' ORDER BY name">gb_* functions</button>
+            </div>
+        </div>
+        <div class="panel" id="sql-error" style="display:none;border-color:var(--red);color:var(--red)"></div>
+        <div class="panel">
+            <div style="overflow:auto"><table id="sql-results"><thead></thead><tbody></tbody></table></div>
+        </div>
+    </section>
+
+    <section id="tab-schema" style="display:none">
+        <div class="grid-2">
+            <div class="panel">
+                <h3 style="margin-top:0">Tables</h3>
+                <table id="tables-table"><thead><tr><th>name</th><th>engine</th><th>rows</th><th>size</th></tr></thead><tbody></tbody></table>
+            </div>
+            <div class="panel">
+                <h3 style="margin-top:0">gb_* functions (<span id="fn-count">-</span>)</h3>
+                <div id="functions-list" style="max-height:500px;overflow:auto"></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="tab-source" style="display:none">
+        <div class="tabs" id="source-tabs">
+            <button class="src-btn active" data-f="00_helpers.sql">00_helpers.sql</button>
+            <button class="src-btn" data-f="00b_write.sql">00b_write.sql</button>
+            <button class="src-btn" data-f="01_step.sql">01_step.sql</button>
+            <button class="src-btn" data-f="02_table.sql">02_table.sql</button>
+            <button class="src-btn" data-f="03_ppu.sql">03_ppu.sql</button>
+            <button class="src-btn" data-f="gen_step.py">gen_step.py</button>
+            <button class="src-btn" data-f="driver.py">driver.py</button>
+        </div>
+        <pre><code id="source-code">loading&hellip;</code></pre>
+    </section>
+</main>
+<script src="/static/explore.js"></script>
+</body>
+</html>
