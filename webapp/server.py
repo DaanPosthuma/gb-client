@@ -120,6 +120,19 @@ def get_run_state(run_id: str):
     return _state_json(row, shades)
 
 
+class ButtonsRequest(BaseModel):
+    held: list[str]
+
+
+@app.post("/api/runs/{run_id}/buttons")
+def set_run_buttons(run_id: str, req: ButtonsRequest):
+    unknown = set(req.held) - set(gb.BUTTON_BITS)
+    if unknown:
+        raise HTTPException(400, f"Unknown button(s): {sorted(unknown)}")
+    gb.set_buttons(client(), run_id, set(req.held))
+    return {"held": req.held}
+
+
 READONLY_PREFIXES = ("SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN", "WITH")
 
 
@@ -161,6 +174,8 @@ def schema_functions():
 SOURCE_FILES = {
     "00_helpers.sql": gb.SQL_DIR / "00_helpers.sql",
     "00b_write.sql": gb.SQL_DIR / "00b_write.sql",
+    "00c_interrupt.sql": gb.SQL_DIR / "00c_interrupt.sql",
+    "00d_timer.sql": gb.SQL_DIR / "00d_timer.sql",
     "01_step.sql": gb.SQL_DIR / "01_step.sql",
     "02_table.sql": gb.SQL_DIR / "02_table.sql",
     "03_ppu.sql": gb.SQL_DIR / "03_ppu.sql",

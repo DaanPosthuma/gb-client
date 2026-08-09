@@ -15,7 +15,7 @@ CREATE OR REPLACE TABLE gb.state
     -- (unnamed), and ClickHouse treats named vs. unnamed tuples as different types,
     -- which arrayFold rejects when the accumulator and lambda-return types must match.
     -- Field order matches gb_mk's, see the comment atop 00_helpers.sql.
-    state   Tuple(Array(UInt8), Array(UInt8), UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt16, UInt16, UInt8, UInt32),
+    state   Tuple(Array(UInt8), Array(UInt8), UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt16, UInt16, UInt8, UInt32, UInt8),
     a UInt8 MATERIALIZED state.4,
     b UInt8 MATERIALIZED state.5,
     c UInt8 MATERIALIZED state.6,
@@ -29,6 +29,7 @@ CREATE OR REPLACE TABLE gb.state
     ime UInt8 MATERIALIZED state.14,
     cycles UInt32 MATERIALIZED state.15,
     boot_active UInt8 MATERIALIZED state.3,
+    buttons UInt8 MATERIALIZED state.16,
     opcode UInt16 MATERIALIZED gb_read8(state, state.13)
 )
 ENGINE = MergeTree

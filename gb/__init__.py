@@ -29,6 +29,12 @@ STATE_COLUMNS = ["run_id", "step_id", "state"]
 # 2-bit shade index (0=lightest..3=darkest) -> 8-bit grayscale for display.
 SHADE_TO_GRAY = [255, 170, 85, 0]
 
+# Bit positions within the `buttons` state field (active-high: 1 = held). Matches
+# gb_buttons' packing documented in 00_helpers.sql - opposite polarity from the real
+# P1 register on purpose, since "1 = held" is the natural representation for a driver
+# tracking currently-pressed keys.
+BUTTON_BITS = {"right": 0, "left": 1, "up": 2, "down": 3, "a": 4, "b": 5, "select": 6, "start": 7}
+
 
 def load_sql(client) -> None:
     # Naive ';'-splitting breaks as soon as a comment contains a semicolon (it did:
@@ -55,7 +61,7 @@ def new_run(client, boot_rom: bytes, cart_rom: bytes, rom_name: str = "") -> uui
     mem[: len(cart_rom)] = cart_rom
 
     run_id = uuid.uuid4()
-    state = (list(mem), list(boot_rom), 1, 0, 0, 0, 0, 0, 0, 0, 0, 0xFFFE, 0x0000, 0, 0)
+    state = (list(mem), list(boot_rom), 1, 0, 0, 0, 0, 0, 0, 0, 0, 0xFFFE, 0x0000, 0, 0, 0)
     client.insert("gb.state", [[run_id, 0, state]], column_names=STATE_COLUMNS)
     return run_id
 
@@ -76,11 +82,30 @@ def run_batch(client, run_id: uuid.UUID, cycles: int) -> None:
     client.command(query, parameters={"run_id": str(run_id), "cycles": cycles})
 
 
+def set_buttons(client, run_id: uuid.UUID, held: set[str]) -> None:
+    """Overwrite the currently-held button set. `held` is any subset of BUTTON_BITS'
+    keys (e.g. {"up", "a"}). Inserts a new row with only `buttons` changed - a plain
+    array rebuild via gb_set_buttons, not a CPU step, so it's cheap and instant
+    regardless of how large gb_step's own dispatch has grown."""
+    buttons = 0
+    for name in held:
+        buttons |= 1 << BUTTON_BITS[name]
+    query = """
+        INSERT INTO gb.state (run_id, step_id, state)
+        SELECT run_id, step_id + 1, gb_set_buttons(state, {buttons:UInt8})
+        FROM gb.state
+        WHERE run_id = {run_id:UUID}
+        ORDER BY step_id DESC
+        LIMIT 1
+    """
+    client.command(query, parameters={"run_id": str(run_id), "buttons": buttons})
+
+
 def get_state_row(client, run_id: uuid.UUID):
     # Selects the MATERIALIZED convenience columns (cheap: each is one tuple-element
     # access), not the raw `state` tuple - avoids pulling the 64KB mem array back to
     # Python just to check registers.
-    cols = "step_id, a, b, c, d, e, h, l, f, sp, pc, ime, cycles, boot_active, opcode"
+    cols = "step_id, a, b, c, d, e, h, l, f, sp, pc, ime, cycles, boot_active, buttons, opcode"
     result = client.query(
         f"SELECT {cols} FROM gb.state WHERE run_id = {{run_id:UUID}} ORDER BY step_id DESC LIMIT 1",
         parameters={"run_id": str(run_id)},

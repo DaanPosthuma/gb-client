@@ -79,6 +79,63 @@ async function playLoop() {
     }
 }
 
+// Keyboard -> joypad. Held state is tracked client-side and pushed to
+// /api/runs/{id}/buttons on every change (gb_set_buttons is a cheap array rebuild,
+// not a CPU step, so this is fine to call on every keydown/keyup).
+const KEY_MAP = {
+    ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+    KeyZ: "a", KeyX: "b", Enter: "start", ShiftRight: "select", ShiftLeft: "select",
+};
+const held = new Set();
+let buttonsInFlight = false;
+let buttonsDirty = false;
+
+function renderHeldBadges() {
+    const el = document.getElementById("held-buttons");
+    if (!el) return;
+    el.textContent = held.size ? [...held].join(" + ") : "(none)";
+}
+
+async function syncButtons() {
+    if (!runId) return;
+    if (buttonsInFlight) { buttonsDirty = true; return; }
+    buttonsInFlight = true;
+    buttonsDirty = false;
+    const snapshot = [...held];
+    await fetch(`/api/runs/${runId}/buttons`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({held: snapshot}),
+    });
+    buttonsInFlight = false;
+    if (buttonsDirty) syncButtons();
+}
+
+window.addEventListener("keydown", (e) => {
+    const btn = KEY_MAP[e.code];
+    if (!btn) return;
+    e.preventDefault();
+    if (held.has(btn)) return;
+    held.add(btn);
+    renderHeldBadges();
+    syncButtons();
+});
+window.addEventListener("keyup", (e) => {
+    const btn = KEY_MAP[e.code];
+    if (!btn) return;
+    e.preventDefault();
+    if (!held.has(btn)) return;
+    held.delete(btn);
+    renderHeldBadges();
+    syncButtons();
+});
+// Releasing focus (e.g. alt-tab) mid-press would otherwise leave a button stuck held.
+window.addEventListener("blur", () => {
+    if (!held.size) return;
+    held.clear();
+    renderHeldBadges();
+    syncButtons();
+});
+
 document.getElementById("new-run").onclick = newRun;
 document.getElementById("step-frame").onclick = stepFrame;
 document.getElementById("play-pause").onclick = () => {
@@ -89,3 +146,4 @@ document.getElementById("play-pause").onclick = () => {
 
 loadRoms();
 drawFrame(new Array(SCREEN_W * SCREEN_H).fill(0));
+renderHeldBadges();

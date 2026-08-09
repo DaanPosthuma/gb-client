@@ -48,12 +48,22 @@
                 <div class="reg-grid" id="reg-grid"></div>
             </div>
             <div class="panel">
+                <h3 style="margin-top:0">Controls</h3>
+                <p style="font-size:13px;color:var(--text-dim);margin:0 0 8px 0">
+                    Arrow keys = D-pad, <code>Z</code> = A, <code>X</code> = B, <code>Enter</code> = Start,
+                    <code>Shift</code> = Select. Held state is pushed to <code>gb_set_buttons</code> on every
+                    key event - a plain array rebuild, not a CPU step, so it's instant regardless of run speed.
+                    Click the page first so it has keyboard focus.
+                </p>
+                <span class="badge">held: <span id="held-buttons">(none)</span></span>
+            </div>
+            <div class="panel">
                 <h3 style="margin-top:0">About this view</h3>
                 <p style="font-size:13px;color:var(--text-dim);margin:0">
-                    Display is the real background-tile PPU output (4 shades, no sprites/window yet).
-                    "boot ROM" shows whether reads at 0x0000-0x00FF are still coming from the boot ROM
-                    overlay or have switched to the cartridge (happens when the boot sequence writes to
-                    the rBANK register at the very end).
+                    Display is the real background+window-tile PPU output (4 shades; sprites are
+                    implemented but disabled - see 03_ppu.sql for why). "boot ROM" shows whether reads at
+                    0x0000-0x00FF are still coming from the boot ROM overlay or have switched to the
+                    cartridge (happens when the boot sequence writes to the rBANK register at the very end).
                 </p>
             </div>
         </div>

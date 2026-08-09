@@ -13,7 +13,7 @@ opcode encoding (register index 0-7 = B,C,D,E,H,L,(HL),A) rather than hand-listi
 every opcode, since most of the ~500-opcode space is regular.
 """
 
-FIELDS = ["a", "b", "c", "d", "e", "h", "l", "f", "sp", "pc", "ime", "cycles"]
+FIELDS = ["a", "b", "c", "d", "e", "h", "l", "f", "sp", "pc", "ime", "cycles", "buttons"]
 PC = "gb_pc(s)"
 CYC = "gb_cycles(s)"
 R8 = ["b", "c", "d", "e", "h", "l", None, "a"]  # index 6 = (HL), handled specially

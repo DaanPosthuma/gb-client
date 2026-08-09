@@ -38,5 +38,6 @@ CREATE OR REPLACE FUNCTION gb_service_interrupt AS (s) ->
         CAST(gb_sp(s) - 2 AS UInt16),
         gb_interrupt_vector(gb_interrupt_bit(gb_pending_interrupts(s))),
         CAST(0 AS UInt8),
-        CAST(gb_cycles(s) + 20 AS UInt32)
+        CAST(gb_cycles(s) + 20 AS UInt32),
+        gb_buttons(s)
     );
