@@ -54,11 +54,22 @@ CREATE OR REPLACE FUNCTION gb_ly AS (cycles) -> CAST(intDiv(cycles, 456) % 154 A
 CREATE OR REPLACE FUNCTION gb_crossed_into_vblank AS (cycles_before, cycles_after) ->
     CAST(intDiv(cycles_before, 456) % 154 < 144 AND intDiv(cycles_after, 456) % 154 >= 144 AS UInt8);
 
--- Memory read: boot ROM overlays 0x0000-0x00FF while active; LY (0xFF44) is derived,
--- never stored, so a read there is intercepted regardless of what's in `mem`.
+-- DIV (0xFF04) increments every 256 T-cycles, purely derived like LY. Real hardware
+-- resets it to 0 on any write; writes here are simply inert (gb_write8 still stores
+-- into `mem`, but gb_read8 always overrides with the derived value) - a known,
+-- documented approximation, same spirit as HALT-as-NOP.
+CREATE OR REPLACE FUNCTION gb_div AS (cycles) -> CAST(intDiv(cycles, 256) % 256 AS UInt8);
+
+-- Memory read: boot ROM overlays 0x0000-0x00FF while active; LY (0xFF44) and DIV
+-- (0xFF04) are derived, never stored, so reads there are intercepted regardless of
+-- what's in `mem`. Joypad (0xFF00) is stubbed to "nothing ever pressed" - no input
+-- wiring yet, so bits 7-6 (unused, always 1) and 5-0 (select lines + button states,
+-- active-low) all read high, matching real hardware's idle/no-press value.
 CREATE OR REPLACE FUNCTION gb_read8 AS (s, addr) ->
     multiIf(
         addr = 0xFF44, gb_ly(gb_cycles(s)),
+        addr = 0xFF04, gb_div(gb_cycles(s)),
+        addr = 0xFF00, CAST(0xFF AS UInt8),
         gb_boot_active(s) = 1 AND addr < 0x100, arrayElement(gb_boot_rom(s), CAST(addr AS UInt16) + 1),
         arrayElement(gb_mem(s), CAST(addr AS UInt32) + 1)
     );

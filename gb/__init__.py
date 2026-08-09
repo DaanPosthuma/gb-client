@@ -18,7 +18,7 @@ def get_client(**overrides):
 
 
 SQL_DIR = Path(__file__).parent
-SQL_FILES = ["00_helpers.sql", "00b_write.sql", "01_step.sql", "02_table.sql", "03_ppu.sql"]
+SQL_FILES = ["00_helpers.sql", "00b_write.sql", "00d_timer.sql", "00c_interrupt.sql", "01_step.sql", "02_table.sql", "03_ppu.sql"]
 
 MEM_SIZE = 65536
 SCREEN_W, SCREEN_H = 160, 144

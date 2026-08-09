@@ -31,9 +31,10 @@ def op(name, mem=None, boot_active=None, pc=None, cycles=None, **regs):
     if cycles is not None:
         vals["cycles"] = cycles
     mem_expr = mem if mem is not None else mem_default()
-    # VBlank IF-flag setting rides along on every instruction's own mem field (see
-    # gb_maybe_set_vblank's comment) instead of a separate post-batch wrapper.
-    wrapped_mem = f"gb_maybe_set_vblank({mem_expr}, {CYC}, {vals['cycles']})"
+    # VBlank IF-flag setting and TIMA ticking both ride along on every instruction's
+    # own mem field via one combined function (see gb_maybe_tick's comment) instead
+    # of a separate post-batch wrapper.
+    wrapped_mem = f"gb_maybe_tick({mem_expr}, {CYC}, {vals['cycles']})"
     boot_active_expr = boot_active if boot_active is not None else "gb_boot_active(s)"
     args = [wrapped_mem, "gb_boot_rom(s)", boot_active_expr] + [vals[f] for f in FIELDS]
     return name, f"gb_mk({', '.join(args)})"
@@ -439,7 +440,10 @@ for byte, name in sorted(OP_TABLE.items()):
 lines.append(f"        {fallback_body}")
 lines.append("    );")
 lines.append("")
-lines.append("CREATE OR REPLACE FUNCTION gb_step AS (s) -> gb_dispatch(s, gb_read8(s, gb_pc(s)));")
+lines.append("CREATE OR REPLACE FUNCTION gb_step AS (s) ->")
+lines.append("    if(gb_ime(s) = 1 AND gb_pending_interrupts(s) != 0,")
+lines.append("       gb_service_interrupt(s),")
+lines.append("       gb_dispatch(s, gb_read8(s, gb_pc(s))));")
 
 print("\n".join(lines))
 print(f"-- {len(OP_TABLE)} unprefixed + {len(CB_TABLE)} CB-prefixed opcodes implemented", flush=True)
